@@ -20,10 +20,6 @@ def client(database_path: Path):
 
 
 def test_crud_lifecycle_and_status_codes(client: TestClient) -> None:
-    information = client.get("/")
-    assert information.status_code == 200
-    assert information.json()["tasks"] == "/tasks"
-
     initial_tasks = client.get("/tasks")
     assert initial_tasks.status_code == 200
     assert initial_tasks.json() == [
@@ -85,6 +81,22 @@ def test_crud_lifecycle_and_status_codes(client: TestClient) -> None:
     assert client.delete("/tasks/9999").json() == {
         "error": "Task 9999 not found"
     }
+
+
+def test_assignment_1_root_compatibility(client: TestClient) -> None:
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.json() == {
+        "name": "Task API",
+        "version": "1.0",
+        "endpoints": ["/tasks"],
+    }
+
+
+def test_assignment_1_health_compatibility(client: TestClient) -> None:
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
 
 @pytest.mark.parametrize(

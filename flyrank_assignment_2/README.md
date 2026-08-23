@@ -18,6 +18,8 @@ SQLite database instead of an in-memory collection.
 
 | Method | Route | Success |
 | --- | --- | --- |
+| `GET` | `/` | `200` |
+| `GET` | `/health` | `200` |
 | `GET` | `/tasks` | `200` |
 | `GET` | `/tasks/{id}` | `200`, `404` |
 | `POST` | `/tasks` | `201`, `400` |

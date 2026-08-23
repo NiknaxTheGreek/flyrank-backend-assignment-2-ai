@@ -7,9 +7,9 @@ compatibility update.
 
 | Command | Observed result |
 | --- | --- |
-| `uv run pytest flyrank_assignment_2/tests/test_tasks.py -q` | `9 passed` |
+| `uv run pytest flyrank_assignment_2/tests/test_tasks.py -q` | `11 passed` |
 | `uv run pytest flyrank_assignment_2/tests/test_persistence_security.py -q` | `2 passed` |
-| `uv run pytest -q` | `11 passed` |
+| `uv run pytest -q` | `13 passed` |
 | `git diff --check` | Passed with no output |
 
 The task-route and full-suite commands each emitted one non-failing FastAPI
@@ -37,7 +37,8 @@ temporary SQLite file. Its passing assertions verified:
 - An existing non-empty relational `tasks` table was not reseeded.
 - Assignment 1 compatibility tests confirmed the missing-task and
   invalid-request JSON error shapes, title-only POST behavior, nullable and
-  coercible PUT fields, and zero/negative numeric ID handling.
+  coercible PUT fields, zero/negative numeric ID handling, and exact root and
+  health endpoint responses.
 
 ## What this record does not claim
 

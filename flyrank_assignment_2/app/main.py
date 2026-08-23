@@ -88,12 +88,16 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         return request.app.state.repository
 
     @app.get("/", status_code=status.HTTP_200_OK)
-    def api_information() -> dict[str, str]:
+    def api_information() -> dict[str, str | list[str]]:
         return {
-            "message": "FlyRank Task API is running.",
-            "tasks": "/tasks",
-            "docs": "/docs",
+            "name": "Task API",
+            "version": "1.0",
+            "endpoints": ["/tasks"],
         }
+
+    @app.get("/health", status_code=status.HTTP_200_OK)
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
 
     @app.get("/tasks", response_model=list[Task], status_code=status.HTTP_200_OK)
     def list_tasks(request: Request) -> list[dict[str, object]]:
