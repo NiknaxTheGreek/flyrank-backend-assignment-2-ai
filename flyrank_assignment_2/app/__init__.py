@@ -1,0 +1,1 @@
+"""FlyRank Backend Assignment 2 application package."""
