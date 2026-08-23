@@ -5,13 +5,11 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
-
-from fastapi import FastAPI, HTTPException, Path as ApiPath, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from .database import TaskRepository
 
@@ -23,15 +21,14 @@ DEFAULT_DATABASE_PATH = (
 
 class Task(BaseModel):
     id: int
-    title: str
-    done: bool
+    title: str | None
+    done: bool | None
 
 
 class TaskCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    title: str = Field(min_length=1, max_length=200)
-    done: StrictBool = False
+    title: str
 
     @field_validator("title")
     @classmethod
@@ -45,8 +42,8 @@ class TaskCreate(BaseModel):
 class TaskUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    title: str | None = Field(default=None, min_length=1, max_length=200)
-    done: StrictBool | None = None
+    title: str | None = None
+    done: bool | None = None
 
     @field_validator("title")
     @classmethod
@@ -57,18 +54,6 @@ class TaskUpdate(BaseModel):
         if not title:
             raise ValueError("title must not be blank")
         return title
-
-    @model_validator(mode="after")
-    def requires_a_valid_field(self) -> "TaskUpdate":
-        provided = self.model_fields_set
-        if not provided:
-            raise ValueError("provide title and/or done")
-        if "title" in provided and self.title is None:
-            raise ValueError("title must be a string")
-        if "done" in provided and self.done is None:
-            raise ValueError("done must be a boolean")
-        return self
-
 
 def create_app(database_path: str | Path | None = None) -> FastAPI:
     """Create an independently configurable application instance."""
@@ -93,10 +78,10 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(_: Request, exc: RequestValidationError) -> JSONResponse:
-        # Assignment 1 treats malformed IDs and invalid task payloads as 400s.
+        # Keep Assignment 1's client-facing validation response unchanged.
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content=jsonable_encoder({"detail": exc.errors()}),
+            content=jsonable_encoder({"error": "Invalid request body"}),
         )
 
     def get_repository(request: Request) -> TaskRepository:
@@ -117,41 +102,64 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
     @app.get("/tasks/{task_id}", response_model=Task, status_code=status.HTTP_200_OK)
     def get_task(
         request: Request,
-        task_id: Annotated[int, ApiPath(gt=0)],
+        task_id: int,
     ) -> dict[str, object]:
         task = get_repository(request).get_task(task_id)
         if task is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"error": f"Task {task_id} not found"},
+            )
         return task
 
     @app.post("/tasks", response_model=Task, status_code=status.HTTP_201_CREATED)
     def create_task(payload: TaskCreate, request: Request) -> dict[str, object]:
-        return get_repository(request).create_task(payload.title, payload.done)
+        return get_repository(request).create_task(payload.title, False)
 
     @app.put("/tasks/{task_id}", response_model=Task, status_code=status.HTTP_200_OK)
     def update_task(
         payload: TaskUpdate,
         request: Request,
-        task_id: Annotated[int, ApiPath(gt=0)],
+        task_id: int,
     ) -> dict[str, object]:
-        task = get_repository(request).update_task(
+        repository = get_repository(request)
+        if repository.get_task(task_id) is None:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"error": f"Task {task_id} not found"},
+            )
+
+        supplied = payload.model_fields_set
+        if not supplied or supplied.isdisjoint({"title", "done"}):
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"error": "Request body must include title and/or done"},
+            )
+
+        task = repository.update_task(
             task_id,
             title=payload.title,
             done=payload.done,
-            fields=payload.model_fields_set,
+            fields=supplied,
         )
         if task is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"error": f"Task {task_id} not found"},
+            )
         return task
 
     @app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
     def delete_task(
         request: Request,
-        task_id: Annotated[int, ApiPath(gt=0)],
+        task_id: int,
     ) -> Response:
         deleted = get_repository(request).delete_task(task_id)
         if not deleted:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"error": f"Task {task_id} not found"},
+            )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return app

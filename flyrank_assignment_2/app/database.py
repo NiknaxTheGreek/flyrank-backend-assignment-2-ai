@@ -27,7 +27,7 @@ class TaskRepository:
         return connection
 
     def initialize(self) -> None:
-        """Create the schema and seed an empty tasks table."""
+        """Create a contract-compatible schema and seed an empty tasks table."""
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
 
         with self._connect() as connection:
@@ -35,11 +35,35 @@ class TaskRepository:
                 """
                 CREATE TABLE IF NOT EXISTS tasks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
-                    done INTEGER NOT NULL DEFAULT 0 CHECK (done IN (0, 1))
+                    title TEXT,
+                    done INTEGER DEFAULT 0 CHECK (done IN (0, 1) OR done IS NULL)
                 )
                 """
             )
+            columns = {
+                row["name"]: row
+                for row in connection.execute("PRAGMA table_info(tasks)").fetchall()
+            }
+            if columns["title"]["notnull"] or columns["done"]["notnull"]:
+                connection.execute(
+                    """
+                    CREATE TABLE tasks_contract_migration (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT,
+                        done INTEGER DEFAULT 0 CHECK (done IN (0, 1) OR done IS NULL)
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    INSERT INTO tasks_contract_migration (id, title, done)
+                    SELECT id, title, done FROM tasks
+                    """
+                )
+                connection.execute("DROP TABLE tasks")
+                connection.execute(
+                    "ALTER TABLE tasks_contract_migration RENAME TO tasks"
+                )
 
             task_count = connection.execute(
                 "SELECT COUNT(*) FROM tasks"
@@ -54,7 +78,11 @@ class TaskRepository:
     def _serialize(row: sqlite3.Row | None) -> dict[str, Any] | None:
         if row is None:
             return None
-        return {"id": row["id"], "title": row["title"], "done": bool(row["done"])}
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "done": None if row["done"] is None else bool(row["done"]),
+        }
 
     def list_tasks(self) -> list[dict[str, Any]]:
         with self._connect() as connection:
@@ -100,10 +128,10 @@ class TaskRepository:
             values: tuple[Any, ...] = (title, task_id)
         elif requested_fields == {"done"}:
             query = "UPDATE tasks SET done = ? WHERE id = ?"
-            values = (int(bool(done)), task_id)
+            values = (None if done is None else int(done), task_id)
         elif requested_fields == {"title", "done"}:
             query = "UPDATE tasks SET title = ?, done = ? WHERE id = ?"
-            values = (title, int(bool(done)), task_id)
+            values = (title, None if done is None else int(done), task_id)
         else:
             return self.get_task(task_id)
 

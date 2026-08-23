@@ -134,7 +134,7 @@ def test_real_restart_persistence_and_sql_injection_safety(tmp_path: Path) -> No
             first_port,
             "POST",
             "/tasks",
-            {"title": "Created before restart", "done": False},
+            {"title": "Created before restart"},
         )
         assert status_code == 201
         assert isinstance(created_task, dict)

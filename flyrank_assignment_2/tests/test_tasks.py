@@ -76,8 +76,15 @@ def test_crud_lifecycle_and_status_codes(client: TestClient) -> None:
     assert deleted.status_code == 204
     assert deleted.content == b""
     assert client.get(f"/tasks/{task_id}").status_code == 404
-    assert client.put("/tasks/9999", json={"done": True}).status_code == 404
-    assert client.delete("/tasks/9999").status_code == 404
+    assert client.get(f"/tasks/{task_id}").json() == {
+        "error": f"Task {task_id} not found"
+    }
+    assert client.put("/tasks/9999", json={"done": True}).json() == {
+        "error": "Task 9999 not found"
+    }
+    assert client.delete("/tasks/9999").json() == {
+        "error": "Task 9999 not found"
+    }
 
 
 @pytest.mark.parametrize(
@@ -86,11 +93,7 @@ def test_crud_lifecycle_and_status_codes(client: TestClient) -> None:
         ("post", "/tasks", {}),
         ("post", "/tasks", {"title": "   "}),
         ("post", "/tasks", {"title": "Wrong type", "done": "true"}),
-        ("put", "/tasks/1", {}),
-        ("put", "/tasks/1", {"title": None}),
-        ("put", "/tasks/1", {"done": None}),
         ("get", "/tasks/not-an-id", None),
-        ("get", "/tasks/0", None),
     ],
 )
 def test_invalid_requests_return_400(
@@ -101,13 +104,51 @@ def test_invalid_requests_return_400(
 ) -> None:
     response = getattr(client, method)(url, json=payload) if payload is not None else getattr(client, method)(url)
     assert response.status_code == 400
+    assert response.json() == {"error": "Invalid request body"}
+
+
+def test_assignment_1_post_update_and_path_compatibility(client: TestClient) -> None:
+    rejected_post = client.post("/tasks", json={"title": "Do not accept done", "done": True})
+    assert rejected_post.status_code == 400
+    assert rejected_post.json() == {"error": "Invalid request body"}
+
+    empty_update = client.put("/tasks/1", json={})
+    assert empty_update.status_code == 400
+    assert empty_update.json() == {
+        "error": "Request body must include title and/or done"
+    }
+
+    nullable_title = client.put("/tasks/1", json={"title": None})
+    assert nullable_title.status_code == 200
+    assert nullable_title.json() == {"id": 1, "title": None, "done": False}
+
+    nullable_done = client.put("/tasks/1", json={"done": None})
+    assert nullable_done.status_code == 200
+    assert nullable_done.json() == {"id": 1, "title": None, "done": None}
+
+    coercible_done = client.put("/tasks/2", json={"done": "true"})
+    assert coercible_done.status_code == 200
+    assert coercible_done.json() == {
+        "id": 2,
+        "title": "Build a CRUD API",
+        "done": True,
+    }
+
+    for task_id in (0, -1):
+        missing = client.get(f"/tasks/{task_id}")
+        assert missing.status_code == 404
+        assert missing.json() == {"error": f"Task {task_id} not found"}
+
+
+def test_docs_are_available(client: TestClient) -> None:
+    assert client.get("/docs").status_code == 200
 
 
 def test_data_persists_across_application_restarts(database_path: Path) -> None:
     with TestClient(create_app(database_path)) as first_client:
         created = first_client.post(
             "/tasks",
-            json={"title": "Survive a restart", "done": True},
+            json={"title": "Survive a restart"},
         )
         assert created.status_code == 201
         created_task = created.json()
