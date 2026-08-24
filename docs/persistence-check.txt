@@ -1,0 +1,8 @@
+Assignment 2 persistence checkpoint
+Initial seeded row count: 3
+Created/updated task id: 4
+Server process stopped and a new Uvicorn process started with the same SQLite file.
+Row count after restart: 4
+Persisted row after restart:
+{"id":4,"title":"Persisted and updated","done":true}
+Result: PASS
