@@ -1,0 +1,9 @@
+SQL executed directly against the verification SQLite database:
+SELECT id, title, done FROM tasks ORDER BY id;
+
+id  title                  done
+--  ---------------------  ----
+1   Learn FastAPI          0   
+2   Build a CRUD API       0   
+3   Read the assignment    1   
+4   Persisted and updated  1   
