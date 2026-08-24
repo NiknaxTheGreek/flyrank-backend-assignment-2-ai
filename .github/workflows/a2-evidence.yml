@@ -5,6 +5,8 @@ on:
     branches: [final/a2-submission-audit]
     paths:
       - ".github/workflows/a2-evidence.yml"
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -133,7 +135,21 @@ jobs:
           kill "$BROWSER_PID" "$XVFB_PID" 2>/dev/null || true
           echo 'A2_DB_BROWSER_SCREENSHOT=PASS'
 
-      - name: Commit executed evidence
+      - name: Upload executed evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assignment-2-sqlite-evidence
+          path: |
+            docs/persistence-check.txt
+            docs/sql-query.txt
+            docs/db-browser.png
+            /tmp/a2-api.log
+            /tmp/sqlitebrowser.log
+          if-no-files-found: warn
+
+      - name: Commit executed evidence on audit branch push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/final/a2-submission-audit'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
