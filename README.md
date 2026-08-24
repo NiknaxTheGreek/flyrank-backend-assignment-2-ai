@@ -32,33 +32,57 @@ The external API remains the same as Assignment 1:
 
 The storage implementation is SQLite. The `tasks` table is created automatically. Exactly three starter tasks are inserted only when the table is empty. All dynamic SQL values are parameterized.
 
-## Persistence and database evidence
+## Executed persistence evidence
 
-The final acceptance workflow verifies the following against a fresh SQLite file:
+The final GitHub Actions verification used a fresh SQLite file and two separate Uvicorn processes. The first process started with exactly three seeded tasks, created task `4`, and updated it. After that process was stopped, a new process started against the same database file. The recorded result was:
 
-1. startup creates the table and exactly three starter rows;
-2. an API-created task is updated;
-3. the server is stopped and restarted against the same database file;
-4. the updated row still exists after restart;
-5. startup does not duplicate the three starter rows;
-6. a direct SQLite query reads the same persisted data;
-7. DB Browser for SQLite is opened against the verification database and a screenshot is captured as evidence.
+```text
+Initial seeded row count: 3
+Created/updated task id: 4
+Row count after restart: 4
+Persisted row after restart:
+{"id":4,"title":"Persisted and updated","done":true}
+Result: PASS
+```
 
-Executed evidence is stored under `docs/` after the evidence workflow completes:
+See [`docs/persistence-check.txt`](docs/persistence-check.txt) for the committed checkpoint.
 
-- `docs/sql-query.txt` — actual SQL query and returned rows;
-- `docs/db-browser.png` — DB Browser for SQLite screenshot;
-- `docs/persistence-check.txt` — restart/persistence checkpoint.
+The verification also queried the SQLite database directly:
 
-The detailed implementation notes and earlier verification record remain in [`flyrank_assignment_2/README.md`](flyrank_assignment_2/README.md) and [`flyrank_assignment_2/VERIFICATION.md`](flyrank_assignment_2/VERIFICATION.md).
+```sql
+SELECT id, title, done FROM tasks ORDER BY id;
+```
 
-## Tests
+Observed rows:
+
+```text
+id  title                  done
+--  ---------------------  ----
+1   Learn FastAPI          0
+2   Build a CRUD API       0
+3   Read the assignment    1
+4   Persisted and updated  1
+```
+
+See [`docs/sql-query.txt`](docs/sql-query.txt) for the committed query/output.
+
+## DB Browser inspection
+
+The same verification database was opened in **DB Browser for SQLite**. The screenshot below is committed from that executed verification run.
+
+![DB Browser for SQLite showing persisted Assignment 2 tasks](docs/db-browser.png)
+
+## Tests and acceptance gate
 
 ```bash
 python -m pytest -q
 ```
 
 The suite covers CRUD compatibility, validation, seed-on-empty behavior, parameterized-query safety, persistence across separate Uvicorn processes, deletion persistence, and non-duplicate seeding.
+
+The acceptance workflow in [`.github/workflows/a2-evidence.yml`](.github/workflows/a2-evidence.yml) performs a clean package install, runs the suite, proves restart persistence against a fresh database, executes the direct SQL inspection, opens DB Browser for SQLite under a virtual display, captures the screenshot, and uploads the evidence artifact.
+
+The detailed implementation notes and earlier verification record remain in [`flyrank_assignment_2/README.md`](flyrank_assignment_2/README.md) and [`flyrank_assignment_2/VERIFICATION.md`](flyrank_assignment_2/VERIFICATION.md).
 
 ## Scope
 
